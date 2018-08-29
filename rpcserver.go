@@ -1567,6 +1567,7 @@ func (r *rpcServer) OpenChannel(in *lnrpc.OpenChannelRequest,
 	remoteInitialBalance := btcutil.Amount(in.PushSat)
 	minHtlcIn := lnwire.MilliSatoshi(in.MinHtlcMsat)
 	remoteCsvDelay := uint16(in.RemoteCsvDelay)
+	maxValue := lnwire.MilliSatoshi(in.MaxValueInFlight)
 
 	// Ensure that the initial balance of the remote party (if pushing
 	// satoshis) does not exceed the amount the local party has requested
@@ -1664,7 +1665,10 @@ func (r *rpcServer) OpenChannel(in *lnrpc.OpenChannelRequest,
 		remoteCsvDelay:  remoteCsvDelay,
 		minConfs:        minConfs,
 		shutdownScript:  script,
+		maxValueInFlight: maxValue,
 	}
+
+	
 
 	// If the user has provided a shim, then we'll now augment the based
 	// open channel request with this additional logic.
@@ -1777,6 +1781,7 @@ func (r *rpcServer) OpenChannelSync(ctx context.Context,
 	remoteInitialBalance := btcutil.Amount(in.PushSat)
 	minHtlcIn := lnwire.MilliSatoshi(in.MinHtlcMsat)
 	remoteCsvDelay := uint16(in.RemoteCsvDelay)
+	maxValue := lnwire.MilliSatoshi(in.MaxValueInFlight)
 
 	// Ensure that the initial balance of the remote party (if pushing
 	// satoshis) does not exceed the amount the local party has requested
@@ -1834,6 +1839,7 @@ func (r *rpcServer) OpenChannelSync(ctx context.Context,
 		remoteCsvDelay:  remoteCsvDelay,
 		minConfs:        minConfs,
 		shutdownScript:  script,
+		maxValueInFlight: maxValue,
 	}
 
 	updateChan, errChan := r.server.OpenChannel(req)

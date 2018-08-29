@@ -3167,6 +3167,8 @@ type openChanReq struct {
 	// This value is optional, so may be nil.
 	shutdownScript lnwire.DeliveryAddress
 
+	maxValueInFlight lnwire.MilliSatoshi
+
 	// TODO(roasbeef): add ability to specify channel constraints as well
 
 	// chanFunder is an optional channel funder that allows the caller to
