@@ -2389,6 +2389,8 @@ func TestFundingManagerCustomChannelParameters(t *testing.T) {
 	// This is the custom parameters we'll use.
 	const csvDelay = 67
 	const minHtlcIn = 1234
+	const maxValueInFlight = 50000
+	const fundingAmt = 5000000
 
 	// We will consume the channel updates as we go, so no buffering is
 	// needed.
@@ -2407,6 +2409,7 @@ func TestFundingManagerCustomChannelParameters(t *testing.T) {
 		localFundingAmt: localAmt,
 		pushAmt:         lnwire.NewMSatFromSatoshis(pushAmt),
 		private:         false,
+		maxValueInFlight: maxValueInFlight,
 		minHtlcIn:       minHtlcIn,
 		remoteCsvDelay:  csvDelay,
 		updates:         updateChan,
@@ -2449,6 +2452,12 @@ func TestFundingManagerCustomChannelParameters(t *testing.T) {
 			minHtlcIn, openChannelReq.HtlcMinimum)
 	}
 
+	// Check that the max value in flight is sent as part of OpenChannel.
+	if openChannelReq.MaxValueInFlight != maxValueInFlight {
+		t.Fatalf("expected OpenChannel to have MaxValueInFlight %v, got %v",
+			maxValueInFlight, openChannelReq.MaxValueInFlight)
+	}
+
 	chanID := openChannelReq.PendingChannelID
 
 	// Let Bob handle the init message.
@@ -2469,6 +2478,14 @@ func TestFundingManagerCustomChannelParameters(t *testing.T) {
 	if acceptChannelResponse.HtlcMinimum != 5 {
 		t.Fatalf("expected AcceptChannel to have minHtlc %v, got %v",
 			5, acceptChannelResponse.HtlcMinimum)
+	}
+
+	reserve := lnwire.NewMSatFromSatoshis(fundingAmt / 100)
+	maxValueAcceptChannel := lnwire.NewMSatFromSatoshis(fundingAmt) - reserve
+
+	if acceptChannelResponse.MaxValueInFlight != maxValueAcceptChannel {
+		t.Fatalf("expected AcceptChannel to have MaxValueInFlight %v, got %v",
+			maxValueAcceptChannel, acceptChannelResponse.MaxValueInFlight)
 	}
 
 	// Forward the response to Alice.
@@ -2516,6 +2533,27 @@ func TestFundingManagerCustomChannelParameters(t *testing.T) {
 		return nil
 	}
 
+	// Helper method for checking the MaxValueInFlight stored for a
+	// reservation.
+	assertMaxValueInFlight := func(resCtx *reservationWithCtx,
+		expOurMaxValue, expTheirMaxValue lnwire.MilliSatoshi) error {
+
+		ourMaxValue :=
+			resCtx.reservation.OurContribution().MaxPendingAmount
+		if ourMaxValue != expOurMaxValue {
+			return fmt.Errorf("expected our maxValue to be %v, "+
+				"was %v", expOurMaxValue, ourMaxValue)
+		}
+
+		theirMaxValue :=
+			resCtx.reservation.TheirContribution().MaxPendingAmount
+		if theirMaxValue != expTheirMaxValue {
+			return fmt.Errorf("expected their MaxPendingAmount to be %v, "+
+				"was %v", expTheirMaxValue, theirMaxValue)
+		}
+		return nil
+	}
+
 	// Check that the custom channel parameters were properly set in the
 	// channel reservation.
 	resCtx, err := alice.fundingMgr.getReservationCtx(bobPubKey, chanID)
@@ -2523,7 +2561,7 @@ func TestFundingManagerCustomChannelParameters(t *testing.T) {
 		t.Fatalf("unable to find ctx: %v", err)
 	}
 
-	// Alice's CSV delay should be 4 since Bob sent the fedault value, and
+	// Alice's CSV delay should be 4 since Bob sent the default value, and
 	// Bob's should be 67 since Alice sent the custom value.
 	if err := assertDelay(resCtx, 4, csvDelay); err != nil {
 		t.Fatal(err)
@@ -2532,6 +2570,14 @@ func TestFundingManagerCustomChannelParameters(t *testing.T) {
 	// The minimum HTLC value Alice can offer should be 5, and the minimum
 	// Bob can offer should be 1234.
 	if err := assertMinHtlc(resCtx, 5, minHtlcIn); err != nil {
+		t.Fatal(err)
+	}
+
+	// The max value in flight Alice can have should be maxValueAcceptChannel,
+	// which is the default value and the maxium Bob can offer should be
+	// maxValueInFlight.
+	if err := assertMaxValueInFlight(resCtx,
+		maxValueAcceptChannel, maxValueInFlight); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2549,6 +2595,10 @@ func TestFundingManagerCustomChannelParameters(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err := assertMaxValueInFlight(resCtx,
+		maxValueInFlight, maxValueAcceptChannel); err != nil {
+		t.Fatal(err)
+	}
 	// Give the message to Bob.
 	bob.fundingMgr.processFundingCreated(fundingCreated, alice)
 
