@@ -677,6 +677,11 @@ var openChannelCommand = cli.Command{
 				"value is set on channel open, you will *not* be " +
 				"able to cooperatively close to a different address.",
 		},
+		cli.Int64Flag{
+			Name: "remote_max_value_in_flight_msat",
+			Usage: "(optional) the maximum value in msat that " +
+				"can be pending within the channel at any given time",
+		},
 	},
 	Action: actionDecorator(openChannel),
 }
@@ -705,6 +710,7 @@ func openChannel(ctx *cli.Context) error {
 		MinConfs:         minConfs,
 		SpendUnconfirmed: minConfs == 0,
 		CloseAddress:     ctx.String("close_address"),
+		MaxValueInFlight: ctx.Int64("remote_max_value_in_flight_msat"),
 	}
 
 	switch {
